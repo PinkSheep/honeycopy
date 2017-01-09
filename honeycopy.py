@@ -13,14 +13,7 @@ def clone():
     honeycopy.clone()
 
 def start():
-    try:
-        if sys.argv[2] != "all":
-            vm.setVm(sys.argv[2])
-            vm.stopVm(cloudstack)
-            vm.createSnapshot(cloudstack, sys.argv[3])
-            vm.startVm(cloudstack)
-    except IndexError:
-        print "missing argument, please provide the VM ID and the name of the snapshot"
+    honeycopy.start()
 
 def listSnapshots():
     try:
@@ -55,14 +48,12 @@ def printHelp():
     print "Options:"
     print "create                       - Creates the Honeypot"
     print "clone                        - creates two copys of the honeypot"
-    print "restart {vmid}               - restartcommand for VMs"
-    print "createsnapshot {vmid} {name} - creates a snapshot"
-    print "revert {vmid} {snapshotid}   - reverts the VM to a snapshot"
-    print "createinitialsnapshot {vmid|all} - creates an initial Snapshot"    
+    print "start                        - starts the VMs and starts recording"
+    return 
 
 options = {"create": create,
-           "clone": clone
-           # "createsnapshot": createSnapshot,
+           "clone": clone,
+           "start": start
            # "listsnapshots":listSnapshots,
            # "createinitialsnapshot":createinitialsnapshot,
            # "help": printHelp,

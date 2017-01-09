@@ -4,15 +4,28 @@ import shutil
 import os
 import errno
 import subprocess
+import schedule
+from datetime import datetime
 
 class HoneyCopy(object):
     def __init__(self):
+        self.vboxpath = os.environ["HOME"]+"/VirtualBox VMs/"
+        self.honeypath = os.getcwd() + "/"
+        self.comparepath = os.getcwd() + "compare/"
+        self.archivepath = os.getcwd() + "archive/"
+        print "Env Variables are: %s , %s" % (self.vboxpath, self.honeypath)
         return
 
 
     def createHoneypot(self):
         if not os.path.exists("vm"):
             os.makedirs("vm")
+
+        if not os.path.exists("compare"):
+            os.makedirs("compare")
+
+        if not os.path.exists("archive"):
+            os.makedirs("archive")
 
         shutil.copyfile("ubuntu.box", "vm/ubuntu.box")
         os.chdir("vm")
@@ -54,62 +67,161 @@ class HoneyCopy(object):
 
 
 
-    def stopVm(self, cloudstack):
-        job = cloudstack.stopVirtualMachine({"id":self.vmid})
-
-        status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
-        print "stopping VM ... Jobid: %s" % status['jobid']
-        while status['jobstatus'] == 0:
-            print ".",
-            sys.stdout.flush()
-            time.sleep(1)
-            status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
-
-        print "Job %s completed, VM stopped" % status['jobid']
+    def start(self):
+        os.chdir("vm")
+        subprocess.check_output(["vagrant", "up"])
+        os.chdir("clone1")
+        subprocess.check_output(["vagrant", "up"])
+        os.chdir("../clone2")
+        subprocess.check_output(["vagrant", "up"])
+        os.chdir("..")
+        print "VMs up, start recording"
+        print "abort by pressing CTRL+C"
+        schedule.every(5).minutes.do(self.compare)
+        while 1:
+            try:
+                schedule.run_pending()
+                time.sleep(1)
+            except KeyboardInterrupt:
+                print "Manually aborted recording, VMs still running"
+                sys.exit()
+        
         return
 
-    def startVm(self, cloudstack):
-        job = cloudstack.startVirtualMachine({"id":self.vmid})
+    def compare(self):
+        print "start comparing"
+        self.suspend()
+        self.createSnapshot()
+        if not os.path.exists(self.honeypath + "fs"):
+            os.makedirs(self.honeypath + "fs")
 
-        status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
-        print "starting VM. Job id = %s" % job['jobid']
+        if not os.path.exists(self.honeypath + "fs/honeypot"):
+            os.makedirs(self.honeypath + "fs/honeypot")
 
-        while status['jobstatus'] == 0:
-            print ".",
-            sys.stdout.flush()
-            time.sleep(1)
-            status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
+        if not os.path.exists(self.honeypath + "fs/copy1"):
+            os.makedirs(self.honeypath + "fs/copy1")
 
-        print "Job %s completed, VM started" % status['jobid']
+        if not os.path.exists(self.honeypath + "fs/copy2"):
+            os.makedirs(self.honeypath + "fs/copy2")
+
+        if not os.path.exists(self.honeypath + "fs/diff"):
+            os.makedirs(self.honeypath + "fs/diff")
+
+        for subdir, dirs, files in os.walk(self.vboxpath):
+            for dir in dirs:
+                if dir.startswith("vm_"):
+                    path1 = self.vboxpath + dir + "/"
+                    shutil.copyfile(path1 +"box-disk1.vmdk", self.honeypath + "fs/honeypot.vmdk")
+
+                if dir.startswith("clone1_"):
+                    path2 = self.vboxpath + dir + "/"
+                    shutil.copyfile(path2 +"box-disk1.vmdk", self.honeypath + "fs/copy1.vmdk")
+
+                if dir.startswith("clone2_"):
+                    path3 = self.vboxpath + dir + "/"
+                    shutil.copyfile(path3 +"box-disk1.vmdk", self.honeypath + "fs/copy2.vmdk")
+
+        self.resume()
+        self.diffFs()
+        self.diffNw()
+        print "compare complete"
         return
 
-    def listAllVms(self, cloudstack):
-        vms = cloudstack.listVirtualMachines()
-        for vm in vms:
-            print "id: %s  Name: %s  State: %s" % (vm['id'], vm['name'], vm['state'])
-
+    def suspend(self):
+        os.chdir(self.honeypath + "vm")
+        subprocess.check_output(["vagrant", "suspend"])
+        os.chdir("clone1")
+        subprocess.check_output(["vagrant", "suspend"])
+        os.chdir("../clone2")
+        subprocess.check_output(["vagrant", "suspend"])
+        os.chdir(self.honeypath)
         return
 
-    def createSnapshot(self, cloudstack, name):
-        vols = cloudstack.listVolumes({"virtualmachineid":self.vmid})
-        for vol in vols:
-          volumeid = vol['id']
-          break
-
-        job = cloudstack.createSnapshot({"volumeid":volumeid,"name":name})
-
-        status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
-
-        print "Creating Snapshot ... Jobid: %s" % status['jobid']
-
-        while status['jobstatus'] == 0:
-          print ".",
-          sys.stdout.flush()
-          time.sleep(1)
-          status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
-
-        print "\n Snapshot has been created..."
+    def resume(self):
+        os.chdir(self.honeypath + "vm")
+        subprocess.check_output(["vagrant", "resume"])
+        os.chdir("clone1")
+        subprocess.check_output(["vagrant", "resume"])
+        os.chdir("../clone2")
+        subprocess.check_output(["vagrant", "resume"])
+        os.chdir(self.honeypath)
         return
+
+
+    def createSnapshot(self):
+        snaptime = datetime.now()
+        os.chdir("vm")
+        subprocess.check_output(["vagrant", "snapshot", "save", str(snaptime.year) + str(snaptime.month) + str(snaptime.day) + "_" + str(snaptime.hour) + str(snaptime.minute) ])
+        os.chdir("clone1")
+        subprocess.check_output(["vagrant", "snapshot", "save", str(snaptime.year) + str(snaptime.month) + str(snaptime.day) + "_" + str(snaptime.hour) + str(snaptime.minute) ])
+        os.chdir("../clone2")
+        subprocess.check_output(["vagrant", "snapshot", "save", str(snaptime.year) + str(snaptime.month) + str(snaptime.day) + "_" + str(snaptime.hour) + str(snaptime.minute) ])
+        os.chdir(self.honeypath)
+        print "snapshots created"
+        return
+
+    def diffFs(self):
+        os.chdir(self.honeypath + "fs")
+        subprocess.check_output(["vmware-mount", "honeypot.vmdk", "honeypot"])
+        subprocess.check_output(["vmware-mount", "copy1.vmdk", "copy1"])
+        subprocess.check_output(["vmware-mount", "copy2.vmdk", "copy2"])
+        print "filesystems mounted"
+
+        try:
+            shutil.move("diff/diff1.2","diff/diff1.1")
+            shutil.move("diff/diff2.2","diff/diff2.1")
+        except IOError as e:
+            print "moving files aborted, not enough files present"
+
+        try:
+            shutil.move("diff/diff1.3","diff/diff1.2")
+            shutil.move("diff/diff2.3","diff/diff2.2")
+        except IOError as e:
+            print "moving files aborted, not enough files present"
+
+        try:
+            subprocess.check_output("rsync -rvl --size-only --dry-run honeypot/ copy1 > diff/diff1.3 2>/dev/null", shell=True)
+        except subprocess.CalledProcessError as e:
+            print "ignoring exitcode from rsync"
+
+        try:
+            subprocess.check_output("rsync -rvl --size-only --dry-run honeypot/ copy2 > diff/diff2.3 2>/dev/null", shell=True)
+        except subprocess.CalledProcessError as e:
+            print "ignoring exitcode from rsync"
+
+
+        try:
+            list1 = self.fileToList("diff/diff1.1")
+            list2 = self.fileToList("diff/diff1.2")
+            list3 = self.fileToList("diff/diff1.3")
+            list4 = self.fileToList("diff/diff2.1")
+            list5 = self.fileToList("diff/diff2.2")
+            list6 = self.fileToList("diff/diff2.3")
+            for line in list2:
+                if line in list1:
+                    continue
+                else:
+                    if line in list3:
+                        if line in list5:
+                            with open('notify.log', 'a+') as notify:
+                                notify.write(line)
+            print "comparison done"
+        except IOError as e:
+            print "not enough files present for comparison"
+        
+    
+        time.sleep(5)
+        subprocess.check_output(["vmware-mount", "-x"])
+        return
+
+    def diffNw(self):
+        return
+
+    def fileToList(self,filename):
+        with open(filename) as f:
+            content = f.readlines()
+
+        return content
 
     def listAllSnapshots(self, cloudstack):
         vols = cloudstack.listVolumes({"virtualmachineid":self.vmid})
