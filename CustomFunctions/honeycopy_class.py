@@ -90,8 +90,8 @@ class HoneyCopy(object):
 
     def compare(self):
         print "start comparing"
+        #self.createSnapshot()
         self.suspend()
-        self.createSnapshot()
         if not os.path.exists(self.honeypath + "fs"):
             os.makedirs(self.honeypath + "fs")
 
@@ -111,15 +111,55 @@ class HoneyCopy(object):
             for dir in dirs:
                 if dir.startswith("vm_"):
                     path1 = self.vboxpath + dir + "/"
-                    shutil.copyfile(path1 +"box-disk1.vmdk", self.honeypath + "fs/honeypot.vmdk")
+                    snapid = self.getSaveId(path1 + "Snapshots/")
+                    if os.path.exists(self.honeypath + "fs/honeypot.vmdk"):
+                        os.remove(self.honeypath + "fs/honeypot.vmdk")
+
+                    time.sleep(5)
+                    print snapid, path1
+
+                    if snapid == "empty":
+                        shutil.copyfile(path1 +"box-disk1.vmdk", self.honeypath + "fs/honeypot.vmdk")
+                    else:
+                        os.chdir(path1 + "Snapshots/")
+                        subprocess.check_output(["VBoxManage", "clonehd", snapid, self.honeypath+"fs/honeypot.vmdk"])
+                        os.chdir(self.honeypath)
+
 
                 if dir.startswith("clone1_"):
                     path2 = self.vboxpath + dir + "/"
-                    shutil.copyfile(path2 +"box-disk1.vmdk", self.honeypath + "fs/copy1.vmdk")
+                    snapid = self.getSaveId(path2 + "Snapshots/")
+                    if os.path.exists(self.honeypath + "fs/copy1.vmdk"):
+                        os.remove(self.honeypath + "fs/copy1.vmdk")
+
+                    time.sleep(5)
+
+                    print snapid, path2
+
+                    if snapid == "empty":
+                        shutil.copyfile(path2 +"box-disk1.vmdk", self.honeypath + "fs/copy1.vmdk")
+                    else:
+                        os.chdir(path2 + "Snapshots/")
+                        subprocess.check_output(["VBoxManage", "clonehd", snapid, self.honeypath+"fs/copy1.vmdk"])
+                        os.chdir(self.honeypath)
 
                 if dir.startswith("clone2_"):
                     path3 = self.vboxpath + dir + "/"
-                    shutil.copyfile(path3 +"box-disk1.vmdk", self.honeypath + "fs/copy2.vmdk")
+                    snapid = self.getSaveId(path3 + "Snapshots/")
+                    if os.path.exists(self.honeypath + "fs/copy2.vmdk"):
+                        os.remove(self.honeypath + "fs/copy2.vmdk")
+
+                    time.sleep(5)
+
+                    print snapid, path3
+
+
+                    if snapid == "empty":
+                        shutil.copyfile(path3 +"box-disk1.vmdk", self.honeypath + "fs/copy2.vmdk")
+                    else:
+                        os.chdir(path3 + "Snapshots/")
+                        subprocess.check_output(["VBoxManage", "clonehd", snapid, self.honeypath+"fs/copy2.vmdk"])
+                        os.chdir(self.honeypath)
 
         self.resume()
         self.diffFs()
@@ -127,12 +167,28 @@ class HoneyCopy(object):
         print "compare complete"
         return
 
+    def getSaveId(self, path):
+        f = []
+        for (dirpath, dirnames, filenames) in os.walk(path):
+            f.extend(filenames)
+            break
+
+        f.sort(key=lambda x: os.stat(os.path.join(path, x)).st_mtime)
+        f.reverse()
+        for file in f:
+            filename, file_extension = os.path.splitext(file)
+            if file_extension == ".vmdk":
+                return file[1:-6]
+
+        return "empty"
+                
+
     def suspend(self):
         os.chdir(self.honeypath + "vm")
         subprocess.check_output(["vagrant", "suspend"])
-        os.chdir("clone1")
+        os.chdir(self.honeypath + "vm/clone1")
         subprocess.check_output(["vagrant", "suspend"])
-        os.chdir("../clone2")
+        os.chdir(self.honeypath + "vm/clone2")
         subprocess.check_output(["vagrant", "suspend"])
         os.chdir(self.honeypath)
         return
@@ -140,9 +196,9 @@ class HoneyCopy(object):
     def resume(self):
         os.chdir(self.honeypath + "vm")
         subprocess.check_output(["vagrant", "resume"])
-        os.chdir("clone1")
+        os.chdir(self.honeypath + "vm/clone1")
         subprocess.check_output(["vagrant", "resume"])
-        os.chdir("../clone2")
+        os.chdir(self.honeypath + "vm/clone2")
         subprocess.check_output(["vagrant", "resume"])
         os.chdir(self.honeypath)
         return
@@ -150,7 +206,7 @@ class HoneyCopy(object):
 
     def createSnapshot(self):
         snaptime = datetime.now()
-        os.chdir("vm")
+        os.chdir(self.honeypath + "vm")
         subprocess.check_output(["vagrant", "snapshot", "save", str(snaptime.year) + str(snaptime.month) + str(snaptime.day) + "_" + str(snaptime.hour) + str(snaptime.minute) ])
         os.chdir("clone1")
         subprocess.check_output(["vagrant", "snapshot", "save", str(snaptime.year) + str(snaptime.month) + str(snaptime.day) + "_" + str(snaptime.hour) + str(snaptime.minute) ])
