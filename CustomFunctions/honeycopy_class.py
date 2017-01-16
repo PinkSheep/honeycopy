@@ -5,7 +5,10 @@ import os
 import errno
 import subprocess
 import schedule
+import pyshark
+import pdb
 from datetime import datetime
+
 
 class HoneyCopy(object):
     def __init__(self):
@@ -59,6 +62,18 @@ class HoneyCopy(object):
         subprocess.check_output(["vagrant", "up"])
         subprocess.check_output(["vagrant", "halt"])
         os.chdir("..")
+
+        if not os.path.exists(self.honeypath + "nw"):
+            os.makedirs(self.honeypath + "nw")
+
+        for subdir, dirs, files in os.walk(self.vboxpath):
+            for dir in dirs:
+                if dir.startswith("vm_"):
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/honeypot.pcap"])
+                if dir.startswith("clone1_"):
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/clone1.pcap"]) 
+                if dir.startswith("clone2_"):
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/clone2.pcap"])  
         return
 
 
@@ -68,6 +83,8 @@ class HoneyCopy(object):
 
 
     def start(self):
+                
+
         os.chdir("vm")
         subprocess.check_output(["vagrant", "up"])
         os.chdir("clone1")
@@ -78,6 +95,7 @@ class HoneyCopy(object):
         print "VMs up, start recording"
         print "abort by pressing CTRL+C"
         schedule.every(5).minutes.do(self.compare)
+        self.compare()
         while 1:
             try:
                 schedule.run_pending()
@@ -90,7 +108,7 @@ class HoneyCopy(object):
 
     def compare(self):
         print "start comparing"
-        #self.createSnapshot()
+        self.createSnapshot()
         self.suspend()
         if not os.path.exists(self.honeypath + "fs"):
             os.makedirs(self.honeypath + "fs")
@@ -261,7 +279,7 @@ class HoneyCopy(object):
                         if line in list5:
                             with open('notify.log', 'a+') as notify:
                                 notify.write(line)
-            print "comparison done"
+            print "FS-Compare done"
         except IOError as e:
             print "not enough files present for comparison"
         
@@ -271,6 +289,36 @@ class HoneyCopy(object):
         return
 
     def diffNw(self):
+        cap1 = self.pcapToList(self.honeypath + "nw/honeypot.pcap")
+        cap2 = self.pcapToList(self.honeypath + "nw/clone1.pcap")
+        cap3 = self.pcapToList(self.honeypath + "nw/clone2.pcap")
+        print "pcap-files read"
+        for pkg1 in cap1:
+            time1 = float(pkg1.sniff_timestamp)
+            param = float(cap1[-1].sniff_timestamp) - 60 * 60
+            less = float(time1) - 60 * 60
+            more = float(time1) + 60 * 60
+            if time1 > param:
+                counter = 0
+                for pkg2 in cap2:
+                    time2 = float(pkg2.sniff_timestamp)
+                    if pkg1.ip.dst == pkg2.ip.dst and  less > time2 and more <= time2:
+                        counter += 1
+                        break
+
+                for pkg3 in cap3:
+                    time3 = float(pkg3.sniff_timestamp)
+                    if pkg1.ip.dst == pkg3.ip.dst and less > time3 and more <= time3:
+                        counter += 1
+                        break
+
+                if counter > 0:
+                    continue
+                else:
+                    with open(self.honeypath + 'fs/notify.log', 'a+') as notify:
+                        notify.write(pkg1.ip.dst + "\n")
+        
+        print "Network-Compare done"
         return
 
     def fileToList(self,filename):
@@ -279,48 +327,10 @@ class HoneyCopy(object):
 
         return content
 
-    def listAllSnapshots(self, cloudstack):
-        vols = cloudstack.listVolumes({"virtualmachineid":self.vmid})
-        for vol in vols:
-          volumeid = vol['id']
-          break
+    def pcapToList(self,filepath):
+        cap = pyshark.FileCapture(filepath, display_filter="tcp")
+        li = []
+        for pkg in cap:
+            li.append(pkg)
 
-        snaps = cloudstack.listSnapshots({"volumeid":volumeid})
-        for snap in snaps:
-            print "id: %s  Name: %s  State: %s  Created on: %s" % (snap['id'], snap['name'], snap['state'], snap['created'])
-
-        return
-
-    def revertSnapshot(self, cloudstack, snapshotid):
-
-        job = cloudstack.revertSnapshot({"id":snapshotid})
-
-        status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
-
-        print "Reverting VM to Snapshot"
-
-        while status['jobstatus'] == 0:
-          print ".",
-          sys.stdout.flush()
-          time.sleep(1)
-          status = cloudstack.queryAsyncJobResult({"jobid":job['jobid']})
-
-        print "\n VM has been reverted to the snapshot"
-        return
-
-    def createInitialSnapshot(self, cloudstack):
-        if self.isAll:
-            vms = cloudstack.listVirtualMachines()
-
-            for vm in vms:
-                self.setVm(vm['id'])
-                self.stopVm(cloudstack)
-                self.createSnapshot(cloudstack, "initialSnapshot")
-                self.startVm(cloudstack)
-
-        else:
-            self.stopVm(cloudstack)
-            self.createSnapshot(cloudstack, "initialSnapshot")
-            self.startVm(cloudstack)
-
-
+        return li
