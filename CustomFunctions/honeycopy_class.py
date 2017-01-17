@@ -14,8 +14,7 @@ class HoneyCopy(object):
     def __init__(self):
         self.vboxpath = os.environ["HOME"]+"/VirtualBox VMs/"
         self.honeypath = os.getcwd() + "/"
-        self.comparepath = os.getcwd() + "compare/"
-        self.archivepath = os.getcwd() + "archive/"
+        self.archivepath = os.getcwd() + "/nw/archive/"
         print "Env Variables are: %s , %s" % (self.vboxpath, self.honeypath)
         return
 
@@ -27,8 +26,8 @@ class HoneyCopy(object):
         if not os.path.exists("compare"):
             os.makedirs("compare")
 
-        if not os.path.exists("archive"):
-            os.makedirs("archive")
+        if not os.path.exists("nw/archive"):
+            os.makedirs("nw/archive")
 
         shutil.copyfile("ubuntu.box", "vm/ubuntu.box")
         os.chdir("vm")
@@ -125,9 +124,16 @@ class HoneyCopy(object):
         if not os.path.exists(self.honeypath + "fs/diff"):
             os.makedirs(self.honeypath + "fs/diff")
 
+        shutil.move(self.honeypath + "nw/honeypot.pcap", self.archivepath + "honeypot.pcap")
+        shutil.move(self.honeypath + "nw/clone1.pcap", self.archivepath + "clone1.pcap")
+        shutil.move(self.honeypath + "nw/clone2.pcap", self.archivepath + "clone2.pcap")
+
         for subdir, dirs, files in os.walk(self.vboxpath):
             for dir in dirs:
                 if dir.startswith("vm_"):
+
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/honeypot.pcap"])
+
                     path1 = self.vboxpath + dir + "/"
                     snapid = self.getSaveId(path1 + "Snapshots/")
                     if os.path.exists(self.honeypath + "fs/honeypot.vmdk"):
@@ -145,6 +151,8 @@ class HoneyCopy(object):
 
 
                 if dir.startswith("clone1_"):
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/clone1.pcap"]) 
+
                     path2 = self.vboxpath + dir + "/"
                     snapid = self.getSaveId(path2 + "Snapshots/")
                     if os.path.exists(self.honeypath + "fs/copy1.vmdk"):
@@ -162,6 +170,9 @@ class HoneyCopy(object):
                         os.chdir(self.honeypath)
 
                 if dir.startswith("clone2_"):
+
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/clone2.pcap"])  
+
                     path3 = self.vboxpath + dir + "/"
                     snapid = self.getSaveId(path3 + "Snapshots/")
                     if os.path.exists(self.honeypath + "fs/copy2.vmdk"):
@@ -184,6 +195,7 @@ class HoneyCopy(object):
         self.diffNw()
         print "compare complete"
         return
+
 
     def getSaveId(self, path):
         f = []
@@ -289,9 +301,10 @@ class HoneyCopy(object):
         return
 
     def diffNw(self):
-        cap1 = self.pcapToList(self.honeypath + "nw/honeypot.pcap")
-        cap2 = self.pcapToList(self.honeypath + "nw/clone1.pcap")
-        cap3 = self.pcapToList(self.honeypath + "nw/clone2.pcap")
+
+        cap1 = self.pcapToList(self.archivepath + "honeypot.pcap")
+        cap2 = self.pcapToList(self.archivepath + "clone1.pcap")
+        cap3 = self.pcapToList(self.archivepath + "clone2.pcap")
         print "pcap-files read"
         for pkg1 in cap1:
             time1 = float(pkg1.sniff_timestamp)
@@ -317,7 +330,14 @@ class HoneyCopy(object):
                 else:
                     with open(self.honeypath + 'fs/notify.log', 'a+') as notify:
                         notify.write(pkg1.ip.dst + "\n")
-        
+
+        time.sleep(2)
+
+        nowtime = datetime.now()
+        shutil.move(self.archivepath + "honeypot.pcap", self.archivepath + "honeypot.pcap_" + str(nowtime.year) + str(nowtime.month) + str(nowtime.day) + str(nowtime.hour) + str(nowtime.minute))
+        shutil.move(self.archivepath + "clone1.pcap", self.archivepath + "clone1.pcap_" + str(nowtime.year) + str(nowtime.month) + str(nowtime.day) + str(nowtime.hour) + str(nowtime.minute))
+        shutil.move(self.archivepath + "clone2.pcap", self.archivepath + "clone2.pcap_" + str(nowtime.year) + str(nowtime.month) + str(nowtime.day) + str(nowtime.hour) + str(nowtime.minute))
+
         print "Network-Compare done"
         return
 
