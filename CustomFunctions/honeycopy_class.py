@@ -6,7 +6,6 @@ import errno
 import subprocess
 import schedule
 import pyshark
-import pdb
 from datetime import datetime
 
 
@@ -19,23 +18,20 @@ class HoneyCopy(object):
         return
 
 
-    def createHoneypot(self):
+    def createHoneypot(self, osstr):
         if not os.path.exists("vm"):
             os.makedirs("vm")
-
-        if not os.path.exists("compare"):
-            os.makedirs("compare")
 
         if not os.path.exists("nw/archive"):
             os.makedirs("nw/archive")
 
-        shutil.copyfile("ubuntu.box", "vm/ubuntu.box")
+        shutil.copyfile(osstr+".box", "vm/"+osstr+".box")
         os.chdir("vm")
-        subprocess.check_output(["vagrant", "box", "add", "ubuntu", "ubuntu.box"], stderr=subprocess.STDOUT)
-        subprocess.check_output(["vagrant", "init", "ubuntu.box"], stderr=subprocess.STDOUT)
+        subprocess.check_output(["vagrant", "box", "add", osstr, osstr+".box"], stderr=subprocess.STDOUT)
+        subprocess.check_output(["vagrant", "init", osstr], stderr=subprocess.STDOUT)
         subprocess.check_output(["vagrant", "up"])
         subprocess.check_output(["vagrant", "halt"])
-        shutil.copyfile("../Vagrantfile_ubuntu", "Vagrantfile")
+        shutil.copyfile("../Vagrantfile_"+osstr, "Vagrantfile")
         return
 
     def clone(self):
@@ -47,23 +43,41 @@ class HoneyCopy(object):
         if not os.path.exists("clone2"):
             os.makedirs("clone2")
 
-        subprocess.check_output(["vagrant", "package", "--output", "ubuntu_clone.box", "--vagrantfile", "../Vagrantfile_ubuntu_clone"])
-        shutil.copyfile("ubuntu_clone.box", "clone1/ubuntu_clone.box")
-        shutil.copyfile("ubuntu_clone.box", "clone2/ubuntu_clone.box")
-        os.remove("ubuntu_clone.box")
-        os.chdir("clone1")
-        subprocess.check_output(["vagrant", "init", "ubuntu_clone.box"])
-        subprocess.check_output(["vagrant", "up"])
-        subprocess.check_output(["vagrant", "halt"])
-        os.chdir("..")
-        os.chdir("clone2")
-        subprocess.check_output(["vagrant", "init", "ubuntu_clone.box"])
-        subprocess.check_output(["vagrant", "up"])
-        subprocess.check_output(["vagrant", "halt"])
-        os.chdir("..")
+        if os.path.exists("windows.box"):
+            osstr = "windows"
+            subprocess.check_output(["vagrant", "package", "--output", "clone1/"+osstr +"_clone1.box", "--vagrantfile", self.honeypath+"Vagrantfile_"+osstr+"_clone1"])
+            time.sleep(5)
+            subprocess.check_output(["vagrant", "package", "--output", "clone2/"+osstr +"_clone2.box", "--vagrantfile", self.honeypath+"Vagrantfile_"+osstr+"_clone2"])
+            os.chdir("clone1")
+            subprocess.check_output(["vagrant", "init", osstr+"_clone1.box"])
+            subprocess.check_output(["vagrant", "up"])
+            subprocess.check_output(["vagrant", "halt"])
+            os.chdir("..")
+            os.chdir("clone2")
+            subprocess.check_output(["vagrant", "init", osstr+"_clone2.box"])
+            subprocess.check_output(["vagrant", "up"])
+            subprocess.check_output(["vagrant", "halt"])
+            os.chdir("..")       
+        else:
+            osstr = "ubuntu"
+            subprocess.check_output(["vagrant", "package", "--output", osstr +"_clone.box", "--vagrantfile", self.honeypath+"Vagrantfile_"+osstr+"_clone"])
+            shutil.copyfile(osstr+"_clone.box", "clone1/"+osstr+"_clone.box")
+            shutil.copyfile(osstr+"_clone.box", "clone2/"+osstr+"_clone.box")
+            os.chdir("clone1")
+            subprocess.check_output(["vagrant", "init", osstr+"_clone.box"])
+            subprocess.check_output(["vagrant", "up"])
+            subprocess.check_output(["vagrant", "halt"])
+            os.chdir("..")
+            os.chdir("clone2")
+            subprocess.check_output(["vagrant", "init", osstr+"_clone.box"])
+            subprocess.check_output(["vagrant", "up"])
+            subprocess.check_output(["vagrant", "halt"])
+            os.chdir("..")
 
         if not os.path.exists(self.honeypath + "nw"):
             os.makedirs(self.honeypath + "nw")
+
+        time.sleep(5)
 
         for subdir, dirs, files in os.walk(self.vboxpath):
             for dir in dirs:
@@ -82,8 +96,6 @@ class HoneyCopy(object):
 
 
     def start(self):
-                
-
         os.chdir("vm")
         subprocess.check_output(["vagrant", "up"])
         os.chdir("clone1")
@@ -93,7 +105,7 @@ class HoneyCopy(object):
         os.chdir("..")
         print "VMs up, start recording"
         print "abort by pressing CTRL+C"
-        schedule.every(5).minutes.do(self.compare)
+        schedule.every(120).minutes.do(self.compare)
         self.compare()
         while 1:
             try:
@@ -253,7 +265,15 @@ class HoneyCopy(object):
         subprocess.check_output(["vmware-mount", "copy2.vmdk", "copy2"])
         print "filesystems mounted"
 
+        snaptime = datetime.now()
+
         try:
+            shutil.move("diff/diff1.1","diff/diff1_" + str(snaptime.year) + str(snaptime.month) + str(snaptime.day) + "_" + str(snaptime.hour) + str(snaptime.minute))
+            shutil.move("diff/diff2.1","diff/diff2_" + str(snaptime.year) + str(snaptime.month) + str(snaptime.day) + "_" + str(snaptime.hour) + str(snaptime.minute))
+        except IOError as e:
+            pass
+        try:
+
             shutil.move("diff/diff1.2","diff/diff1.1")
             shutil.move("diff/diff2.2","diff/diff2.1")
         except IOError as e:
@@ -266,12 +286,12 @@ class HoneyCopy(object):
             print "moving files aborted, not enough files present"
 
         try:
-            subprocess.check_output("rsync -rvl --size-only --dry-run honeypot/ copy1 > diff/diff1.3 2>/dev/null", shell=True)
+            subprocess.check_output("rsync -rvl --size-only --dry-run --devices honeypot/ copy1 > diff/diff1.3 2>/dev/null", shell=True)
         except subprocess.CalledProcessError as e:
             print "ignoring exitcode from rsync"
 
         try:
-            subprocess.check_output("rsync -rvl --size-only --dry-run honeypot/ copy2 > diff/diff2.3 2>/dev/null", shell=True)
+            subprocess.check_output("rsync -rvl --size-only --dry-run --devices honeypot/ copy2 > diff/diff2.3 2>/dev/null", shell=True)
         except subprocess.CalledProcessError as e:
             print "ignoring exitcode from rsync"
 
@@ -306,30 +326,35 @@ class HoneyCopy(object):
         cap2 = self.pcapToList(self.archivepath + "clone1.pcap")
         cap3 = self.pcapToList(self.archivepath + "clone2.pcap")
         print "pcap-files read"
+        duplicated = []
         for pkg1 in cap1:
             time1 = float(pkg1.sniff_timestamp)
-            param = float(cap1[-1].sniff_timestamp) - 60 * 60
-            less = float(time1) - 60 * 60
-            more = float(time1) + 60 * 60
-            if time1 > param:
-                counter = 0
-                for pkg2 in cap2:
-                    time2 = float(pkg2.sniff_timestamp)
-                    if pkg1.ip.dst == pkg2.ip.dst and  less > time2 and more <= time2:
-                        counter += 1
-                        break
+            param = float(cap1[-1].sniff_timestamp) - 60 * 60 *2
+            less = float(time1) - 60 * 60 * 2
+            more = float(time1) + 60 * 60 * 2
+            if pkg1.ip.dst in duplicated:
+                continue
+            else:
+                duplicated.append(pkg1.ip.dst)
+                if time1 > param:
+                    counter = 0
+                    for pkg2 in cap2:
+                        time2 = float(pkg2.sniff_timestamp)
+                        if pkg1.ip.dst == pkg2.ip.dst and  less > time2 and more <= time2:
+                            counter += 1
+                            break
 
-                for pkg3 in cap3:
-                    time3 = float(pkg3.sniff_timestamp)
-                    if pkg1.ip.dst == pkg3.ip.dst and less > time3 and more <= time3:
-                        counter += 1
-                        break
+                    for pkg3 in cap3:
+                        time3 = float(pkg3.sniff_timestamp)
+                        if pkg1.ip.dst == pkg3.ip.dst and less > time3 and more <= time3:
+                            counter += 1
+                            break
 
-                if counter > 0:
-                    continue
-                else:
-                    with open(self.honeypath + 'fs/notify.log', 'a+') as notify:
-                        notify.write(pkg1.ip.dst + "\n")
+                    if counter > 0:
+                        continue
+                    else:
+                        with open(self.honeypath + 'fs/notify.log', 'a+') as notify:
+                            notify.write(pkg1.ip.dst + "\n")
 
         time.sleep(2)
 
@@ -348,7 +373,7 @@ class HoneyCopy(object):
         return content
 
     def pcapToList(self,filepath):
-        cap = pyshark.FileCapture(filepath, display_filter="tcp")
+        cap = pyshark.FileCapture(filepath, display_filter="tcp and tcp.seq < 2")
         li = []
         for pkg in cap:
             li.append(pkg)

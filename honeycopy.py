@@ -7,7 +7,10 @@ honeycopy = CustomFunctions.HoneyCopy()
 
 
 def create():
-    honeycopy.createHoneypot()
+    try:
+        honeycopy.createHoneypot(sys.argv[2])
+    except IndexError:
+        print "missing second argument, please provide the os (ubuntu | windows)"
 
 def clone():
     honeycopy.clone()
