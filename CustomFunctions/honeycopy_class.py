@@ -260,9 +260,14 @@ class HoneyCopy(object):
 
     def diffFs(self):
         os.chdir(self.honeypath + "fs")
-        subprocess.check_output(["vmware-mount", "honeypot.vmdk", "honeypot"])
-        subprocess.check_output(["vmware-mount", "copy1.vmdk", "copy1"])
-        subprocess.check_output(["vmware-mount", "copy2.vmdk", "copy2"])
+        if os.path.exists(self.honeypath+"vm/windows.box"):
+            subprocess.check_output(["vmware-mount", "honeypot.vmdk", "2", "honeypot"])
+            subprocess.check_output(["vmware-mount", "copy1.vmdk", "2", "copy1"])
+            subprocess.check_output(["vmware-mount", "copy2.vmdk", "2", "copy2"])
+        else:
+            subprocess.check_output(["vmware-mount", "honeypot.vmdk", "honeypot"])
+            subprocess.check_output(["vmware-mount", "copy1.vmdk", "copy1"])
+            subprocess.check_output(["vmware-mount", "copy2.vmdk", "copy2"])            
         print "filesystems mounted"
 
         snaptime = datetime.now()
@@ -317,7 +322,12 @@ class HoneyCopy(object):
         
     
         time.sleep(5)
-        subprocess.check_output(["vmware-mount", "-x"])
+        try:
+            subprocess.check_output(["vmware-mount", "-x"])
+        except subprocess.CalledProcessError as e:
+            subprocess.check_output(["vmware-mount", "-x"])
+            print "ignoring vmware-mount error"
+            
         return
 
     def diffNw(self):
