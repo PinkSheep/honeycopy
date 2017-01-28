@@ -82,7 +82,7 @@ class HoneyCopy(object):
         for subdir, dirs, files in os.walk(self.vboxpath):
             for dir in dirs:
                 if dir.startswith("vm_"):
-                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/honeypot.pcap"])
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace2", "on" , "--nictracefile1", self.honeypath + "nw/honeypot.pcap"])
                 if dir.startswith("clone1_"):
                     subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/clone1.pcap"]) 
                 if dir.startswith("clone2_"):
@@ -144,7 +144,7 @@ class HoneyCopy(object):
             for dir in dirs:
                 if dir.startswith("vm_"):
 
-                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace1", "on" , "--nictracefile1", self.honeypath + "nw/honeypot.pcap"])
+                    subprocess.check_output(["VBoxManage", "modifyvm", dir ,"--nictrace2", "on" , "--nictracefile1", self.honeypath + "nw/honeypot.pcap"])
 
                     path1 = self.vboxpath + dir + "/"
                     snapid = self.getSaveId(path1 + "Snapshots/")
