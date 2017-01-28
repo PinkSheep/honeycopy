@@ -140,7 +140,7 @@ class HoneyCopy(object):
         shutil.move(self.honeypath + "nw/clone1.pcap", self.archivepath + "clone1.pcap")
         shutil.move(self.honeypath + "nw/clone2.pcap", self.archivepath + "clone2.pcap")
 
-        for subdir, dirs, files in os.walk(self.vboxpath)
+        for subdir, dirs, files in os.walk(self.vboxpath):
             for dir in dirs:
                 if dir.startswith("vm_"):
 
