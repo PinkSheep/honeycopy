@@ -105,7 +105,7 @@ class HoneyCopy(object):
         os.chdir("..")
         print "VMs up, start recording"
         print "abort by pressing CTRL+C"
-        schedule.every(120).minutes.do(self.compare)
+        schedule.every(10).minutes.do(self.compare)
         self.compare()
         while 1:
             try:
@@ -339,9 +339,9 @@ class HoneyCopy(object):
         duplicated = []
         for pkg1 in cap1:
             time1 = float(pkg1.sniff_timestamp)
-            param = float(cap1[-1].sniff_timestamp) - 60 * 60 *2
-            less = float(time1) - 60 * 60 * 2
-            more = float(time1) + 60 * 60 * 2
+            param = float(cap1[-1].sniff_timestamp) - 10 * 60
+            less = float(time1) - 10 * 60
+            more = float(time1) + 10 * 60
             if pkg1.ip.dst in duplicated:
                 continue
             else:
