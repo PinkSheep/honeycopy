@@ -313,9 +313,16 @@ class HoneyCopy(object):
                     continue
                 else:
                     if line in list3:
-                        if line in list5:
-                            with open('notify.log', 'a+') as notify:
-                                notify.write(line)
+                        with open('notify.log', 'a+') as notify:
+                            notify.write(line)
+
+            for line in list5:
+                if line in list4:
+                    continue
+                else:
+                    if line in list6::
+                        with open('notify.log', 'a+') as notify:
+                            notify.write(line)
             print "FS-Compare done"
         except IOError as e:
             print "not enough files present for comparison"
@@ -325,7 +332,7 @@ class HoneyCopy(object):
         try:
             subprocess.check_output(["vmware-mount", "-x"])
         except subprocess.CalledProcessError as e:
-            subprocess.check_output(["vmware-mount", "-x"])
+            subprocess.check_output(["vmware-   mount", "-x"])
             print "ignoring vmware-mount error"
             
         return
@@ -339,9 +346,9 @@ class HoneyCopy(object):
         duplicated = []
         for pkg1 in cap1:
             time1 = float(pkg1.sniff_timestamp)
-            param = float(cap1[-1].sniff_timestamp) - 10 * 60
-            less = float(time1) - 10 * 60
-            more = float(time1) + 10 * 60
+            param = float(cap1[-1].sniff_timestamp) - 60 * 60 * 2 
+            less = float(time1) - 60 * 60
+            more = float(time1) + 60 * 60
             if pkg1.ip.dst in duplicated:
                 continue
             else:
@@ -360,9 +367,7 @@ class HoneyCopy(object):
                             counter += 1
                             break
 
-                    if counter > 0:
-                        continue
-                    else:
+                    if counter < 1:
                         with open(self.honeypath + 'fs/notify.log', 'a+') as notify:
                             notify.write(pkg1.ip.dst + "\n")
 

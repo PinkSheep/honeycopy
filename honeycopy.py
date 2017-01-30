@@ -18,33 +18,6 @@ def clone():
 def start():
     honeycopy.start()
 
-def listSnapshots():
-    try:
-        vm.setVm(sys.argv[2])
-        vm.listAllSnapshots(cloudstack)
-    except IndexError:
-        print "missing second argument, please provide the VM ID"
-
-def revert():
-    try:
-        vm.setVm(sys.argv[2])
-        vm.stopVm(cloudstack)
-        vm.revertSnapshot(cloudstack, sys.argv[3])
-        vm.startVm(cloudstack)
-    except IndexError:
-        print "missing argument, please provide the snapshot ID and the VM ID"
-
-def createinitialsnapshot():
-    try:
-        if sys.argv[2] != "all":
-            vm.setVm(sys.argv[2])
-        else:
-            vm.setForAll(True)
-
-        vm.createInitialSnapshot(cloudstack)
-    except IndexError:
-        print "missing argument, please provide the snapshot ID and the VM ID"
-
 def printHelp():
     print "Command Line Utility for predefined Cloudstack Functions"
     print ""
