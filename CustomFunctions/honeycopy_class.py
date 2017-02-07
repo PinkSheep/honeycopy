@@ -105,7 +105,7 @@ class HoneyCopy(object):
         os.chdir("..")
         print "VMs up, start recording"
         print "abort by pressing CTRL+C"
-        schedule.every(10).minutes.do(self.compare)
+        schedule.every(60).minutes.do(self.compare)
         self.compare()
         while 1:
             try:
