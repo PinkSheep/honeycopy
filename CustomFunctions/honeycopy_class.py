@@ -320,7 +320,7 @@ class HoneyCopy(object):
                 if line in list4:
                     continue
                 else:
-                    if line in list6::
+                    if line in list6:
                         with open('notify.log', 'a+') as notify:
                             notify.write(line)
             print "FS-Compare done"
