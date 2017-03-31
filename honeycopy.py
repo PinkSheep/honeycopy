@@ -18,6 +18,9 @@ def clone():
 def start():
     honeycopy.start()
 
+def cleanup():
+    honeycopy.cleanup()
+
 def printHelp():
     print "Command Line Utility for predefined Cloudstack Functions"
     print ""
@@ -25,11 +28,13 @@ def printHelp():
     print "create                       - Creates the Honeypot"
     print "clone                        - creates two copys of the honeypot"
     print "start                        - starts the VMs and starts recording"
+    print "cleanup                      - removes the VMs (without removing the collected data)"
     return 
 
 options = {"create": create,
            "clone": clone,
-           "start": start
+           "start": start,
+           "cleanup": cleanup
            # "listsnapshots":listSnapshots,
            # "createinitialsnapshot":createinitialsnapshot,
            # "help": printHelp,
